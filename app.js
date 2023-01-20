@@ -25,36 +25,86 @@ app.use(cors({
   allowedHeaders: 'Content-Type, Set-Cookie'
 }));
 
-router.post('/highscore', async function (req, res) {
+router.post('/checkscore', async function (req, res) {
   const { difficulty, gamemode, points, username } = req.body;
   if (!(difficulty && gamemode && points && username)) return res.status(400).json({ msg: 'Parameter is missing' });
   if (!['easy', 'normal', 'hard', 'pro'].includes(difficulty)) return res.status(400).json({ msg: 'Illegal difficulty' });
   if (!['classic', 'deluxe'].includes(gamemode)) return res.status(400).json({ msg: 'Illegal gamemode' });
 
   const highscore = await Highscore.findOne({ difficulty: difficulty, gamemode: gamemode });
-  let result = null;
+  let result = {
+    highscore: false,
+    place: 0
+  };
   if (highscore) {
-    result = highscore;
-    // Points highscores
     let isHighscore = false;
     for (let i = 0; i < highscore.scores.length; i++) {
       const current = highscore.scores[i];
       if (current.score < points) {
+        result.highscore = true;
+        result.place = i + 1;
+        isHighscore = true;
+        break;
+      }
+    }
+    if (highscore.scores.length < settings.maxHighscores && !isHighscore)  {
+      result.highscore = true;
+      result.place = highscore.scores.length + 1;
+    }
+  }
+  else {
+    result.highscore = true;
+    result.place = 1;
+  }
+
+  return res.status(200).json(result);
+});
+
+router.post('/highscore', async function (req, res) {
+  const { difficulty, gamemode, points, username, checksum } = req.body;
+  if (!(difficulty && gamemode && points && username && checksum)) return res.status(400).json({ msg: 'Parameter is missing' });
+  if (!['easy', 'normal', 'hard', 'pro'].includes(difficulty)) return res.status(400).json({ msg: 'Illegal difficulty' });
+  if (!['classic', 'deluxe'].includes(gamemode)) return res.status(400).json({ msg: 'Illegal gamemode' });
+
+  let timestamp;
+  try {
+    timestamp = checksum.split(':')[0];
+    const pointsArr = checksum.split('p'),
+          pointsAcc = pointsArr.reduce((prev, curr, index) => {
+            return (index > 0) ? prev + parseInt(curr) : prev;
+          }, 0);
+    if (pointsAcc !== parseInt(points)) return res.status(400).json({ msg: 'Illegal score, checksum is incorrect' });
+  }
+  catch (e) {
+    return res.status(400).json({ msg: 'Checksum validation failed' });
+  }
+
+  const highscore = await Highscore.findOne({ difficulty: difficulty, gamemode: gamemode });
+  let result = null;
+  if (highscore) {
+    result = highscore;
+    let isHighscore = false;
+    for (let i = 0; i < highscore.scores.length; i++) {
+      const current = highscore.scores[i];
+      if (current.timestamp === timestamp) return res.status(400).json({ msg: 'Highscore cannot be saved twice' });
+      if (current.score < points) {
         highscore.scores.splice(i, 0, {
           username: username,
-          score: points
+          score: points,
+          timestamp: timestamp
         });
         isHighscore = true;
         break;
       }
     }
-    if (highscore.scores.length > 20) {
-      highscore.scores.splice(20, highscore.scores.length - 20);
+    if (highscore.scores.length > settings.maxHighscores) {
+      highscore.scores.splice(settings.maxHighscores);
     }
-    else if (!isHighscore)  {
+    else if (highscore.scores.length < settings.maxHighscores && !isHighscore)  {
       highscore.scores.push({
         username: username,
-        score: points
+        score: points,
+        timestamp: timestamp
       });
     }
     highscore.save();
@@ -66,7 +116,8 @@ router.post('/highscore', async function (req, res) {
       scores: [
         {
           username: username,
-          score: points
+          score: points,
+          timestamp: timestamp
         }
       ],
     });

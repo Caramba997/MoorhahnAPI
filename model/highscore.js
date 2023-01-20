@@ -6,7 +6,8 @@ const highscoreSchema = new mongoose.Schema({
   scores: [
     {
       username: { type: String },
-      score: { type: Number }
+      score: { type: Number },
+      timestamp : {type: String }
     }
   ]
 }, {
