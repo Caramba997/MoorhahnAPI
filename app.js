@@ -26,8 +26,8 @@ app.use(cors({
 }));
 
 router.post('/checkscore', async function (req, res) {
-  const { difficulty, gamemode, points, username } = req.body;
-  if (!(difficulty && gamemode && points && username)) return res.status(400).json({ msg: 'Parameter is missing' });
+  const { difficulty, gamemode, points } = req.body;
+  if (!(difficulty && gamemode && points)) return res.status(400).json({ msg: 'Parameter is missing' });
   if (!['easy', 'normal', 'hard', 'pro'].includes(difficulty)) return res.status(400).json({ msg: 'Illegal difficulty' });
   if (!['classic', 'deluxe'].includes(gamemode)) return res.status(400).json({ msg: 'Illegal gamemode' });
 
